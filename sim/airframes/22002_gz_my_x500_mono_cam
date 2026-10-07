@@ -1,0 +1,10 @@
+#!/bin/sh
+#
+# @name Gazebo x500 mono cam
+#
+# @type Quadrotor
+#
+
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=my_x500_mono_cam}
+
+. ${R}etc/init.d-posix/airframes/22001_gz_my_x500

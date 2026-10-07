@@ -1,0 +1,8 @@
+# colcon
+ws/build/
+ws/install/
+ws/log/
+
+# Python
+__pycache__/
+*.pyc
