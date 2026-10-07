@@ -6,3 +6,4 @@ ws/log/
 # Python
 __pycache__/
 *.pyc
+camera/
