@@ -18,6 +18,9 @@ setup(
         # Include config files
         (os.path.join('share', package_name, 'config'), 
             glob('config/*.yaml')),
+        # Include mission files (rows of north,east,down,delay_s)
+        (os.path.join('share', package_name, 'missions'),
+            glob('missions/*.csv')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

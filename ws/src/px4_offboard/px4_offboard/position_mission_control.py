@@ -11,14 +11,19 @@ from px4_msgs.msg import (
     VehicleStatus,
     VehicleGlobalPosition
 )
+from ament_index_python.packages import get_package_share_directory
 import math
+import os
 from enum import Enum, auto
+
+import csv
 
 class MissionState(Enum):
     WARMUP = auto()
     TRAVEL = auto()
     WAIT = auto()
     RTL = auto()
+    LAND = auto()
 
 class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
@@ -56,16 +61,28 @@ class OffboardControl(Node):
         self.vehicle_global_position = VehicleGlobalPosition()
         self.vehicle_status = VehicleStatus()
 
-        self.mission = []
-        self.mission.append([100, 100, -30, 5]) #NED + delay at endpoint
-        self.mission.append([50, 150, -40, 0]) 
-        self.mission.append([150, 100, -60, 10]) 
-        self.mission.append([0, 150, -20, 2]) 
+        # self.mission = []
+        # self.mission.append([100, 100, -30, 5]) #NED + delay at endpoint
+        # self.mission.append([50, 150, -40, 0]) 
+        # self.mission.append([150, 100, -60, 10]) 
+        # self.mission.append([0, 150, -20, 2]) 
+
+        # A bare name is looked up in the package's installed missions/ folder;
+        # a path (absolute, or relative to the current directory) is used as is.
+        self.declare_parameter('mission_file', 'mission_box.csv')
+        mission_file = self.get_parameter('mission_file').value
+        if os.path.dirname(mission_file) == '':
+            mission_file = os.path.join(
+                get_package_share_directory('px4_offboard'), 'missions', mission_file)
+        with open(mission_file, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            self.mission = [[float(cell) for cell in row] for row in reader if row]
+        self.get_logger().info(f'Loaded {len(self.mission)} waypoints from {mission_file}')
+
         self.mcnt = len(self.mission)
         self.lcnt = 0
 
         self.state = MissionState.WARMUP
-
 
         self.posz = 0.0 #NED
         self.posx = 0
@@ -76,7 +93,9 @@ class OffboardControl(Node):
 
         self.position = [0.0, 0.0, 0.0]
 
-        self.loop_hz = 5
+        self.loop_hz = 20
+        self.land_cnt = 0       # timer cycles spent waiting for PX4 to enter land mode
+        self.done = False       # set when PX4 has taken over the landing; main() then exits
         # Create a timer to publish control commands
         self.timer = self.create_timer(1.0 / self.loop_hz, self.timer_callback)
         self.timergps = self.create_timer(1.0, self.timergps_callback) 
@@ -206,7 +225,10 @@ class OffboardControl(Node):
                         self.lcnt += 1
                         self.get_logger().info(f"Next waypoint: {self.posx}, {self.posy}, {self.posz}, delay: {self.delay}")
                     else:
-                        self.state = MissionState.RTL
+                        if self.posx == 0 and self.posy == 0:
+                            self.state = MissionState.LAND
+                        else:
+                            self.state = MissionState.RTL
             case MissionState.WAIT:
                 self.dcnt += 1
                 self.yaw = self.yaw + .05  # Increment yaw for a slow rotation during wait
@@ -218,11 +240,39 @@ class OffboardControl(Node):
                         self.get_logger().info(f"Next waypoint: {self.posx}, {self.posy}, {self.posz}, delay: {self.delay}")
                         self.state = MissionState.TRAVEL
                     else:
-                        self.state = MissionState.RTL
+                        if self.posx == 0 and self.posy == 0:
+                            self.state = MissionState.LAND
+                        else:
+                            self.state = MissionState.RTL
             case MissionState.RTL:
-                self.get_logger().info("Mission complete. Returning to launch.")
-                self.rtl()
-                exit(0)
+                # self.get_logger().info("Mission complete. Returning to launch.")
+                # Commands are BEST_EFFORT, so resend once a second until PX4 confirms land mode.
+                # PX4 then lands and disarms on its own, and the node can stop.
+                if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_RTL:
+                    self.get_logger().info("Mission complete. PX4 is returning to launch.")
+                    self.done = True
+                elif self.land_cnt >= 5 * self.loop_hz:
+                    self.get_logger().error("PX4 did not enter return to launch mode within 5 s. Stopping anyway.")
+                    self.done = True
+                else:
+                    if self.land_cnt % self.loop_hz == 0:
+                        self.rtl()
+                    self.land_cnt += 1
+            case MissionState.LAND:
+                # self.get_logger().info("Mission complete. Returning to launch.")
+                # self.rtl()
+                # Commands are BEST_EFFORT, so resend once a second until PX4 confirms land mode.
+                # PX4 then lands and disarms on its own, and the node can stop.
+                if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_AUTO_LAND:
+                    self.get_logger().info("Mission complete. PX4 is landing.")
+                    self.done = True
+                elif self.land_cnt >= 5 * self.loop_hz:
+                    self.get_logger().error("PX4 did not enter land mode within 5 s. Stopping anyway.")
+                    self.done = True
+                else:
+                    if self.land_cnt % self.loop_hz == 0:
+                        self.land()
+                    self.land_cnt += 1
 
 
 
@@ -231,9 +281,14 @@ def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
     offboard_control = OffboardControl()
-    rclpy.spin(offboard_control)
-    offboard_control.destroy_node()
-    rclpy.shutdown()
+    try:
+        while rclpy.ok() and not offboard_control.done:
+            rclpy.spin_once(offboard_control, timeout_sec=0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        offboard_control.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':
