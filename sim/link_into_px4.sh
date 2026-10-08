@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Symlink this repo's Gazebo models and PX4 airframes into a PX4-Autopilot checkout,
-# so the repo is the single source of truth and PX4 itself stays a stock checkout.
+# so the repo is the single source of truth, and apply the fixes in sim/patches. Apart from
+# those patches, PX4 stays a stock checkout.
 #
 # Usage: sim/link_into_px4.sh [path/to/PX4-Autopilot]   (default: ~/PX4-Autopilot)
 #
 # Existing real files/dirs at a link target are moved aside to <target>.bak-<timestamp>,
 # never deleted. Re-running is safe: correct links are left alone.
-# Rebuild PX4 afterwards (make px4_sitl) so the airframes are copied into build/.
+# Patches already applied are skipped.
+# Rebuild PX4 afterwards (make px4_sitl) so the airframes and patched code are built.
 
 set -euo pipefail
 
@@ -50,3 +52,20 @@ for airframe in "$SIM_DIR"/airframes/*; do
         echo "cmake   added $name to $CMAKE"
     fi
 done
+
+# Local fixes to PX4 and its Gazebo models submodule.
+apply_patch() {  # apply_patch <git repo> <patch>
+    local repo="$1" patch="$2"
+    if git -C "$repo" apply --reverse --check "$patch" 2>/dev/null; then
+        echo "ok      patch $(basename "$patch")"
+    elif git -C "$repo" apply "$patch"; then
+        echo "patched $repo with $(basename "$patch")"
+    else
+        echo "Patch $(basename "$patch") does not apply to $repo" >&2; exit 1
+    fi
+}
+
+# Gazebo magnetometer: correct frame and units (backport of PX4 PR #28877 and
+# PX4-gazebo-models PR #161). Without it the EKF heading is wrong whenever the drone tilts.
+apply_patch "$PX4_DIR" "$SIM_DIR/patches/px4-autopilot-gz-magnetometer.patch"
+apply_patch "$PX4_DIR/Tools/simulation/gz" "$SIM_DIR/patches/px4-gazebo-models-mag-noise-tesla.patch"
