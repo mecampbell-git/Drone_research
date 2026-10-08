@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  e-con See3CAM_24CUG (no enclosure), from camera/e-con_See3CAM_24CUG_datasheet.pdf and
+  camera/e-con_See3CAM_24CUG_Lens_Datasheet.pdf.
+
+  The link and sensor names match PX4's mono_cam (camera_link / imager), so the Gazebo
+  topics, and therefore px4_bringup's bridge_config.yaml, keep the same shape.
+
+  Limits of the simulation:
+  - Gazebo renders a pinhole camera, which cannot match the lens's 104.6 / 61.6 / 128.2 deg
+    (H / V / D) FOV: the lens has strong barrel distortion at the sides and corners. The FOV
+    here is that of the 3.0 mm focal length on the 5.76 x 3.60 mm sensor (fx ~1000 px), so the
+    image centre and vertical extent match the real camera; the outer ~8 deg each side of the
+    real frame is missing. Add <distortion> coefficients once the camera is calibrated.
+  - 30 Hz, not the real 55 fps (UYVY) / 60 fps (MJPEG) at 1920x1200: each rgb8 frame is
+    ~6.9 MB, which is already ~200 MB/s through the ros_gz bridge.
+  - Mass is an estimate; the datasheet gives none.
+-->
+<sdf version='1.9'>
+  <model name='see3cam_24cug'>
+    <pose>0 0 0 0 0 0</pose>
+    <self_collide>false</self_collide>
+    <static>false</static>
+    <link name="camera_link">
+      <inertial>
+        <mass>0.030</mass>
+        <inertia>
+          <ixx>0.0000045</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0000040</iyy>
+          <iyz>0</iyz>
+          <izz>0.0000040</izz>
+        </inertia>
+      </inertial>
+      <!-- Board stack: 30 x 30 mm, 26 mm deep along the optical axis (+X) -->
+      <visual name="see3cam/visual/board">
+        <geometry>
+          <box>
+            <size>0.026 0.030 0.030</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>.05 .25 .1 1</ambient>
+          <diffuse>.05 .25 .1 1</diffuse>
+        </material>
+      </visual>
+      <!-- M12 lens barrel (approximate) -->
+      <visual name="see3cam/visual/lens">
+        <pose>0.0205 0 0 0 1.5707963 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.007</radius>
+            <length>0.015</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>.1 .1 .1 1</ambient>
+          <diffuse>.1 .1 .1 1</diffuse>
+        </material>
+      </visual>
+      <sensor name="imager" type="camera">
+        <gz_frame_id>camera_link</gz_frame_id>
+        <pose>0.028 0 0 0 0 0</pose>
+        <camera>
+          <!-- 87.7 deg: 2 atan(2.88 mm / 3.0 mm) -->
+          <horizontal_fov>1.531</horizontal_fov>
+          <image>
+            <width>1920</width>
+            <height>1200</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>3000</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+      </sensor>
+      <gravity>true</gravity>
+      <velocity_decay />
+    </link>
+  </model>
+</sdf>

@@ -41,7 +41,8 @@ def generate_launch_description():
     px4_dir = os.path.expanduser('~/PX4-Autopilot')
     qgc_path = os.path.expanduser('~/Downloads/QGroundControl-x86_64.AppImage')
     # PX4 airframe to run (make px4_sitl gz_<model>); Gazebo names the instance <model>_0
-    model = 'my_x500_mono_cam'
+    model = 'my_x500_see3cam_down'
+    # model = 'my_x500_mono_cam'
 
     # Gazebo worlds shipped with PX4 (Tools/simulation/gz/worlds/<name>.sdf)
     worlds = sorted(
