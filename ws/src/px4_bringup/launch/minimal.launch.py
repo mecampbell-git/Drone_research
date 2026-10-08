@@ -60,14 +60,15 @@ def generate_launch_description():
     return LaunchDescription([
         world_arg,
 
-        # 1. Launch PX4 SITL with Gazebo in a new terminal
+        # 1. Launch PX4 SITL with Gazebo in a new terminal.
+        #    DRONE_SIM_WINDOW=1 marks the window so sim/kill_sim.sh can close it.
         ExecuteProcess(
             cmd=[
                 'gnome-terminal',
                 '--title=PX4 SITL',
                 '--',
                 'bash', '-c',
-                [f'cd {px4_dir} && PX4_GZ_WORLD=', LaunchConfiguration('world'),
+                [f'export DRONE_SIM_WINDOW=1; cd {px4_dir} && PX4_GZ_WORLD=', LaunchConfiguration('world'),
                  f' make px4_sitl gz_{model}; exec bash']
             ],
             output='screen',
@@ -84,7 +85,7 @@ def generate_launch_description():
                         '--title=MicroXRCE Agent',
                         '--',
                         'bash', '-c',
-                        'MicroXRCEAgent udp4 -p 8888; exec bash'
+                        'export DRONE_SIM_WINDOW=1; MicroXRCEAgent udp4 -p 8888; exec bash'
                     ],
                     output='screen',
                     name='microxrce_agent'

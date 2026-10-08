@@ -34,7 +34,7 @@ def generate_launch_description():
             '--',
             'bash', '-c',
             # Command to run in the new terminal:
-            f'source {ros_setup_path} && source {ws_setup_path} && '
+            f'export DRONE_SIM_WINDOW=1; source {ros_setup_path} && source {ws_setup_path} && '
             f'echo "Terminal for Keyboard Teleop (Press Space to Arm)" && '
             f'ros2 run {package_name} teleop_keyboard.py; '
             'exec bash' # Keeps the terminal open after the script exits
