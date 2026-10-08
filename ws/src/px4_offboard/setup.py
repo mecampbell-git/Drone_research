@@ -37,6 +37,7 @@ setup(
             'velocity_offboard_control.py = px4_offboard.velocity_offboard_control:main', 
             'teleop_joystick.py = px4_offboard.teleop_joystick:main',
             'camera_monitor.py = px4_offboard.camera_monitor:main',
+            'waypoint_mission.py = px4_offboard.waypoint_mission:main',
         ],
     },
 )

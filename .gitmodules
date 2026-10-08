@@ -2,3 +2,7 @@
 	path = ws/src/px4_msgs
 	url = https://github.com/PX4/px4_msgs.git
 	branch = release/1.17
+[submodule "ws/src/px4-ros2-interface-lib"]
+	path = ws/src/px4-ros2-interface-lib
+	url = https://github.com/Auterion/px4-ros2-interface-lib.git
+	branch = release/1.17
