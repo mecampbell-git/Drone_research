@@ -99,6 +99,28 @@ a real requirement.
 
 ---
 
+### Q10 — Precise velocity/acceleration control from Python custom modes
+**Status:** deferred (2026-10-08) — Goto at 5 m/s is good enough for now; moving on to vision.
+
+The Python waypoint mission ([`waypoint_mission.py`](../ws/src/px4_offboard/px4_offboard/waypoint_mission.py))
+flies with PX4's **Goto** setpoint. That gives PX4's smoothing for free but limits control:
+- speed is capped by PX4's `MPC_XY_CRUISE` (default 5 m/s) and acceleration by `MPC_ACC_HOR`,
+  scaled by `max_speed / MPC_XY_CRUISE`; neither parameter can be changed from a ROS 2 node;
+- Goto slows proportionally as it nears its target (~0.5 × distance, `MPC_XY_TRAJ_P`), which is
+  why fly-through waypoints need the "carrot" workaround.
+
+**The fix:** bind the library's **Trajectory** setpoint type (`px4_ros2::TrajectorySetpointType`,
+`control/setpoint_types/experimental/trajectory.hpp`): position, velocity, acceleration and yaw,
+each optional, the same as offboard's `TrajectorySetpoint`. It exists in the 1.17 C++ library but
+has no Python binding; adding one is the same small job as the bindings already added to the
+vendored [`px4_ros2_py`](../ws/src/px4_ros2_py/README.md). Then a mode can run its own speed
+profile with velocity feed-forward, fly through corners without the carrot, and exceed
+`MPC_XY_CRUISE` (up to `MPC_XY_VEL_MAX`).
+**Settles when:** a task needs precise velocity control or speeds above 5 m/s — at the latest
+M6 (visual servoing, which streams velocity commands from the tracker) or M7 (avoidance).
+
+---
+
 ## Glossary
 
 | Term | Meaning |
