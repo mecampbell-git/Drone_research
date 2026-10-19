@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Symlink this repo's Gazebo models and PX4 airframes into a PX4-Autopilot checkout,
+# Symlink this repo's Gazebo models and worlds and PX4 airframes into a PX4-Autopilot checkout,
 # so the repo is the single source of truth, and apply the fixes in sim/patches. Apart from
 # those patches, PX4 stays a stock checkout.
 #
@@ -16,6 +16,7 @@ PX4_DIR="${1:-$HOME/PX4-Autopilot}"
 SIM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODELS_DST="$PX4_DIR/Tools/simulation/gz/models"
 AIRFRAMES_DST="$PX4_DIR/ROMFS/px4fmu_common/init.d-posix/airframes"
+WORLDS_DST="$PX4_DIR/Tools/simulation/gz/worlds"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 [[ -d "$MODELS_DST" && -d "$AIRFRAMES_DST" ]] || {
@@ -41,6 +42,19 @@ done
 
 for airframe in "$SIM_DIR"/airframes/*; do
     link "$airframe" "$AIRFRAMES_DST/$(basename "$airframe")"
+done
+
+# PX4 loads worlds/<name>.sdf, and Gazebo topics (bridge_config.yaml) use <world name>,
+# so the two must match. Skip files where they don't (e.g. scratch saves from the GUI).
+for world in "$SIM_DIR"/worlds/*.sdf; do
+    [[ -e "$world" ]] || continue
+    file_name="$(basename "$world" .sdf)"
+    world_name="$(grep -oPm1 "<world name=['\"]\K[^'\"]+" "$world" || true)"
+    if [[ "$world_name" != "$file_name" ]]; then
+        echo "skip    $(basename "$world"): <world name='$world_name'> does not match the file name" >&2
+        continue
+    fi
+    link "$world" "$WORLDS_DST/$(basename "$world")"
 done
 
 # PX4 only installs airframes listed in this CMakeLists, inside the custom-model range.

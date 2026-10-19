@@ -2,12 +2,14 @@
 
 """
 PX4 Minimal Launch File
-Launches PX4 SITL, MicroXRCE Agent, the Gazebo camera bridge and the camera monitor
+Launches PX4 SITL, MicroXRCE Agent, the Gazebo camera bridge and the camera monitor,
+and the YOLO object detector with detector:=true
 """
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, TimerAction
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from string import Template
@@ -57,8 +59,16 @@ def generate_launch_description():
         description='Gazebo world to load (sets PX4_GZ_WORLD)'
     )
 
+    detector_arg = DeclareLaunchArgument(
+        name='detector',
+        default_value='false',
+        choices=['true', 'false'],
+        description='Run the YOLO object detector on the camera (needs ultralytics)'
+    )
+
     return LaunchDescription([
         world_arg,
+        detector_arg,
 
         # 1. Launch PX4 SITL with Gazebo in a new terminal.
         #    DRONE_SIM_WINDOW=1 marks the window so sim/kill_sim.sh can close it.
@@ -122,6 +132,16 @@ def generate_launch_description():
             name='camera_monitor',
             output='screen',
             emulate_tty=True,
+        ),
+
+        # 6. Optional: YOLO detections on /detections, boxes drawn on /camera/detections_image
+        Node(
+            package='px4_offboard',
+            executable='object_detector.py',
+            name='object_detector',
+            output='screen',
+            emulate_tty=True,
+            condition=IfCondition(LaunchConfiguration('detector')),
         ),
 
         # # Launch QGroundControl after 5 seconds

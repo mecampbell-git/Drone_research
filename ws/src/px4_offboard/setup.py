@@ -38,6 +38,7 @@ setup(
             'teleop_joystick.py = px4_offboard.teleop_joystick:main',
             'camera_monitor.py = px4_offboard.camera_monitor:main',
             'waypoint_mission.py = px4_offboard.waypoint_mission:main',
+            'object_detector.py = px4_offboard.object_detector:main',
         ],
     },
 )
