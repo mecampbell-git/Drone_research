@@ -102,6 +102,7 @@ class WaypointMode(px4_ros2.components.ModeBase):
         while True:
             a, b = self.segment_start(i), self.points[i]
             length = np.linalg.norm(b - a)
+            # print(i, remaining, length)
             if remaining <= length:
                 return a + (b - a) * (remaining / length)
             if self.is_stop(i):
@@ -139,6 +140,7 @@ class WaypointMode(px4_ros2.components.ModeBase):
         speed_xy = math.hypot(velocity[0], velocity[1])
         distance = self.lookahead + speed_xy / APPROACH_GAIN
         target = self.carrot(i, along, distance)
+        # print(target)
 
         # Face the direction of travel; hold the last heading close to the target, where the
         # direction to it becomes noisy.

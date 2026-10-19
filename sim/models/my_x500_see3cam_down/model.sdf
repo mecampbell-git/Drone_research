@@ -9,10 +9,18 @@
       Under the body, centred (base_link is at z .24 in the model frame; the body's underside
       is at ~.222). Pitch +90 deg turns the camera's +X optical axis to point down, with the
       top of the image towards the nose. Update the pose once the real mount is built.
+
+      Moved camera forward to get skids out of the way of the camera's field of view.
+      <pose>.12 0 .20 0 1.57 0</pose>
+
+      Rotated image 90 deg to remove skids from the image.
+     <pose>0 0 .20 1.57 1.57 0</pose>
+
+      <pose>.12 0 .20 1.57 1.57 0</pose>
     -->
     <include merge='true'>
       <uri>model://see3cam_24cug</uri>
-      <pose>.12 0 .20 0 1.57 0</pose>
+      <pose>.12 0 .20 0 1.05 0</pose>
     </include>
     <joint name="CameraJoint" type="fixed">
       <parent>base_link</parent>
