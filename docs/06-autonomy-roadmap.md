@@ -53,6 +53,8 @@ Assemble the X500 V2. Bind RC. Calibrate sensors. Tune. Fly ~10 manual battery p
 takeoff, hover, and landing are muscle memory. Practice failsafe: kill the RC link deliberately
 at altitude and confirm RTL.
 
+Step by step: [10 — Hardware Bring-up](10-hardware-bringup.md).
+
 **Done:** you are bored flying it, and RTL has been verified in the air.
 
 *Do not skip this.* When the autonomy misbehaves, your ability to take over instantly is the
