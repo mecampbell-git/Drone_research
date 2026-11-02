@@ -100,12 +100,13 @@ back).
 | `BAT1_N_CELLS` | 4 | |
 | `BAT1_V_EMPTY` / `BAT1_V_CHARGED` | 3.5 V / 4.2 V | Per cell |
 | `BAT1_V_DIV` | 18.478 | Trimmed to match a multimeter on the pack |
-| `BAT1_A_PER_V` | **53.6** | Was 36.37; PX4 read current 1.47× low (three charger comparisons, [12](12-first-flights-2026-10-28.md)) |
-| `BAT1_CAPACITY` | **3700 mAh** | Was 5200 (the label); both packs hold about 3700 |
+| `BAT1_A_PER_V` | **53.6** | Was 36.37. PX4 reads current 1.2–1.47× low ([12](12-first-flights-2026-10-28.md)); 53.6 is the upper bound, erring towards landing early until a watt meter settles it |
+| `BAT1_CAPACITY` | 5200 mAh | The label; a charger discharge test showed the packs hold at least that |
 | `BAT1_R_INTERNAL` | **0.004 Ω** per cell | Was −1 (auto), whose estimate fell to 0 in flight, so the battery % followed the sagging voltage |
 
-Check after the next flight from a full charge: QGC's mAh used should be within about 5 % of
-what the charger puts back.
+To settle `BAT1_A_PER_V`, fly once from a full charge with an inline XT60 watt meter between
+battery and drone: `BAT1_A_PER_V` = 53.6 × (watt meter mAh ÷ QGC mAh). The charger's mAh counter
+is not a reliable reference: it appears to read about 20 % high.
 
 **Actuators**: Motors 1–4 assigned to the ESC outputs, DShot600 on FMU PWM OUT or PWM 400 Hz
 on I/O PWM OUT. Verified order and spin: 1 front-right CCW, 2 rear-left CCW, 3 front-left CW,

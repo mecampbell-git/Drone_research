@@ -3,8 +3,8 @@
 The first outdoor flights of the X500 V2, milestone **M1** in [06](06-autonomy-roadmap.md): two
 sessions, about 30 minutes in the air on four battery charges, flown in Position mode. The aircraft
 flew well. One flight ended in a tree, caused by piloting plus a stick-override setting, not by a
-fault; the logs also showed that PX4 misreads battery current and that the packs hold less than
-their label. Settings changed as a result are in [11](11-rc-and-qgc-settings.md).
+fault; the logs also showed that PX4 reads battery current low and does not compensate for
+voltage sag. Settings changed as a result are in [11](11-rc-and-qgc-settings.md).
 
 ---
 
@@ -12,7 +12,7 @@ their label. Settings changed as a result are in [11](11-rc-and-qgc-settings.md)
 
 Times are local (UTC−7); the SD-card log names are UTC. Heights and distances are from the home
 (takeoff) position. mAh is PX4's count since power-up, so it accumulates over flights on one pack,
-and it reads 1.47× low (see Battery).
+and it reads low (see Battery).
 
 | SD log | QGC log | Local | Pack | Airborne | Max dist | Max height | mAh (cumulative) | How it ended |
 |---|---|---|---|---|---|---|---|---|
@@ -63,29 +63,40 @@ connected).
 
 ## Battery
 
-**PX4 reads current 1.47× low.** Each charger reading is from a full charge, flown, then
-recharged:
+**PX4 reads current low.** Each comparison is from a full charge, flown, then recharged:
 
-| Charge | QGC mAh | Charger mAh | Ratio | Meter after flight | Capacity = charger ÷ (1 − meter) |
-|---|---|---|---|---|---|
-| Pack 1, morning | 2003 | 2970 | 1.48 | 19 % | 3670 mAh |
-| Pack A, afternoon | 1894 | 2777 | 1.47 | 23 % | 3610 mAh |
-| Pack B, afternoon | 2076 | 3083 | 1.49 | 18 % | 3760 mAh |
+| Charge | QGC mAh | Charger mAh | Ratio |
+|---|---|---|---|
+| Pack 1, morning | 2003 | 2970 | 1.48 |
+| Pack A, afternoon | 1894 | 2777 | 1.47 |
+| Pack B, afternoon | 2076 | 3083 | 1.49 |
 
-The same ratio on three charges and two packs points to the power module's scale factor, not a
-battery: `BAT1_A_PER_V` raised from 36.37 to 53.6. True hover current is about 18 A, not the
-12.5 A PX4 showed; at 1.69 kg that is about 6 g/W, plausible with ESC losses and frame blockage.
-The alternative, a charger over-counting by 47 %, is unlikely, and raising `BAT1_A_PER_V` errs
-on the safe side either way.
+The same ratio on three charges and two packs points to a scale factor, not a battery. Part of it
+may be the charger's own counter (below), so the true error in PX4's current lies between about
+1.2× and 1.47×. `BAT1_A_PER_V` was raised from 36.37 to 53.6 (the full 1.47×) for now: if that
+is too high, PX4 over-counts mAh used and lands early, which is the safe direction. An inline
+XT60 watt meter on one flight will settle it: `BAT1_A_PER_V` = 53.6 × (watt meter mAh ÷ QGC mAh).
 
-**Both packs hold about 3700 mAh**, about 70 % of the 5200 on their label: `BAT1_CAPACITY`
-set to 3700. Expect about 8 minutes of flight to a 25–30 % reserve.
+**The packs hold their rated 5200 mAh or more.** A battery meter read 18–23 % left after each
+flight, which first suggested only about 3700 mAh per pack. A full cycle on the charger
+(2026-10-30) disproved that: discharging a full pack at 0.33 A (the charger's 5 W discharge
+limit) delivered 6000 mAh and stopped at 13.79 V (3.45 V/cell), still short of empty, and the
+recharge took 6000 mAh and stopped at 16.67 V (4.17 V/cell), still short of full. Both stops
+were the charger's 6000 mAh capacity cut-off ("CAPA"), not the battery; the charger's 240 min
+safety timer ("TIME") also has to be raised for a full discharge. So the meter's percentage was
+wrong, by roughly half the pack.
+
+More than 6000 charger-mAh from a 5200 mAh pack suggests the charger over-counts by about 20 %.
+That fits the weight: at 1.69 kg a real hover current of about 15 A (PX4's 12.5 A × 1.2) is
+expected, while 18 A (× 1.47) would be high. `BAT1_CAPACITY` stays at the label's 5200. The Zeee
+packs are not faulty, though their hard case (sold for RC cars) adds weight a drone pays for.
 
 **The battery % jumped around** (afternoon: 20 % → 14 % in a moment, 13 % → 29 % after
 landing): `BAT1_R_INTERNAL` was −1 (auto) and its estimate fell to 0 in flight, so PX4 did not
 compensate for voltage sag under load. Every takeoff dropped the estimate by about 20 % within
 15 s. The pack's internal resistance, measured from current steps in the logs and corrected for
-the current scale, is about 3–4 mΩ per cell: `BAT1_R_INTERNAL` set to 0.004.
+the current scale, is about 3–4.5 mΩ per cell for either correction factor: `BAT1_R_INTERNAL` set
+to 0.004.
 
 ## Failsafes
 
@@ -119,7 +130,6 @@ The logs were read with `pyulog` (in a scratch virtual environment on the laptop
 | Parameter | Before | After |
 |---|---|---|
 | `BAT1_A_PER_V` | 36.37 | 53.6 |
-| `BAT1_CAPACITY` | 5200 | 3700 |
 | `BAT1_R_INTERNAL` | −1 | 0.004 |
 | `COM_RC_OVERRIDE` | 1 | 0 |
 
@@ -128,7 +138,7 @@ The logs were read with `pyulog` (in a scratch virtual environment on the laptop
 - Replace the broken prop and skid; check the other props, the motor on that corner, its arm and
   mount, and the GPS mast. Secure the battery holder with a strap plus a hook-and-loop pad.
 - After the repair, a short low hover to check for new vibration.
-- First flight with the new battery parameters, from a full charge: QGC's mAh used should match
-  the charger within about 5 %, and the battery % should stay steady under load.
+- First flight with the new battery parameters, from a full charge, with an inline XT60 watt
+  meter: set `BAT1_A_PER_V` from its mAh, and check that the battery % stays steady under load.
 - Keep within 50 m and above tree height when far out, keep the throttle centred in Position
   mode, and let battery failsafes complete.
