@@ -28,6 +28,8 @@ pybind11_add_module(
         src/px4_ros2/components/mode_executor.cpp
         src/px4_ros2/components/node_wrapper.cpp
         src/px4_ros2/control/setpoint_types/multicopter/goto.cpp
+        src/px4_ros2/control/setpoint_types/experimental/trajectory.cpp
+        src/px4_ros2/odometry/attitude.cpp
         src/px4_ros2/odometry/local_position.cpp
         src/px4_ros2/utils/geometry.cpp
 )

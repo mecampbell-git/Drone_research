@@ -48,7 +48,10 @@ void bindNodeWrapper(py::module& m)
   node_wrapper
       .def(py::init<const std::string&, bool>(), py::arg("node_name"),
            py::arg("debug_output") = false)
-      .def("spin", &NodeWrapper::spin, "Execute the node (blocking)")
+      // Releases the GIL (added, see README.md), so Python threads, e.g. an rclpy executor,
+      // run while it blocks
+      .def("spin", &NodeWrapper::spin, py::call_guard<py::gil_scoped_release>(),
+           "Execute the node (blocking)")
       .def("spin_non_blocking", &NodeWrapper::spinNonBlocking,
            "Execute the node (non-blocking in a background thread)")
       // Added for PX4 v1.17 (see README.md)

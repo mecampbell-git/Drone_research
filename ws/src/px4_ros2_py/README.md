@@ -16,15 +16,18 @@ Changes from upstream:
     `activation` constructor argument (`components.ModeExecutorActivation.only_when_armed`,
     `.always`, `.immediately`).
   - `odometry.LocalPosition`: `velocity_ned`, `velocity_xy_valid`, `velocity_z_valid`, `heading`.
+  - `odometry.Attitude` (`px4_ros2::OdometryAttitude`, not bound upstream at all): `on_update`,
+    `attitude` (quaternion as a `(w, x, y, z)` tuple, like `utils`), `roll`, `pitch`, `yaw`.
   - `Node.shutdown()`, which makes `spin()` return.
-
-Not yet bound, wanted later (see `docs/open-questions.md` Q10):
-
-- `px4_ros2::TrajectorySetpointType` (`control/setpoint_types/experimental/trajectory.hpp`):
-  position/velocity/acceleration/yaw setpoints, for precise velocity control in custom modes.
-  Bind `update(velocity, acceleration, yaw, yaw_rate)` and the `TrajectorySetpoint` struct overload
-  (all fields optional), following `control/setpoint_types/multicopter/goto.cpp`, and register it
-  in `bind_main.cpp` under `control`.
+  - `control.TrajectorySetpointType` (`experimental/trajectory.hpp` in C++): `update(velocity,
+    acceleration=None, yaw=None, yaw_rate=None)`, `update(setpoint)` and
+    `update_position(position)`; and `control.TrajectorySetpoint(*, position=None, velocity=None,
+    acceleration=None, yaw=None, yaw_rate=None)`, where each vector is an (x, y, z) tuple whose
+    entries may be None (axis not controlled), plus read/write fields `position_ned_m_x` etc.
+    Unlike Goto it is not capped by `MPC_XY_CRUISE` (only `MPC_XY_VEL_MAX`); flight-tested at
+    7 m/s with velocity XY + position Z, acceleration feed-forward and position hold.
+- **Changed** `Node.spin()` to release the GIL while it blocks, so other Python threads (e.g. an
+  rclpy executor for perception subscriptions) keep running. Upstream holds it, which starves them.
 
 Drop this package when upgrading to a PX4 release whose interface-library branch ships
 `px4_ros2_py` with these features.

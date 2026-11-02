@@ -100,7 +100,10 @@ a real requirement.
 ---
 
 ### Q10 — Precise velocity/acceleration control from Python custom modes
-**Status:** deferred (2026-10-08) — Goto at 5 m/s is good enough for now; moving on to vision.
+**Status:** ✅ done (2026-10-20) — `px4_ros2.control.TrajectorySetpointType` is now bound (see
+[`px4_ros2_py`](../ws/src/px4_ros2_py/README.md)) and flight-tested at 7 m/s. Missions still use
+Goto; switch a mode to the Trajectory type when it needs the control below. Was deferred
+(2026-10-08) while Goto at 5 m/s was good enough.
 
 The Python waypoint mission ([`waypoint_mission.py`](../ws/src/px4_offboard/px4_offboard/waypoint_mission.py))
 flies with PX4's **Goto** setpoint. That gives PX4's smoothing for free but limits control:

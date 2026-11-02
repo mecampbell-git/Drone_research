@@ -9,7 +9,9 @@
 #include "components/mode.hpp"
 #include "components/mode_executor.hpp"
 #include "components/node_wrapper.hpp"
+#include "control/setpoint_types/experimental/trajectory.hpp"
 #include "control/setpoint_types/multicopter/goto.hpp"
+#include "odometry/attitude.hpp"
 #include "odometry/local_position.hpp"
 #include "utils/geometry.hpp"
 
@@ -35,9 +37,11 @@ PYBIND11_MODULE(px4_ros2_py, m)
   {
     auto submodule = m.def_submodule("control");
     bindSetpointMulticopterGoto(submodule);
+    bindSetpointTrajectory(submodule);  // added for PX4 v1.17 (see README.md)
   }
   {
     auto submodule = m.def_submodule("odometry");
     bindLocalPosition(submodule);
+    bindAttitude(submodule);  // added for PX4 v1.17 (see README.md)
   }
 }
