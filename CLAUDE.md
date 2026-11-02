@@ -63,6 +63,10 @@ sim/kill_sim.sh
 # Plot the newest SITL flight log: XY track + target + waypoints, velocity, heading
 tools/plot_flight.py                           # --mission mission1.csv, --save DIR, or a .ulg path
 
+# Fly SITL with the EdgeTX transmitter (USB joystick) as real RC input; see docs/10 "Practising in SITL first"
+tools/edgetx_rc.py --setup                     # once per SITL param set: channel map, RC_CHAN_CNT, COM_RC_IN_MODE 0
+tools/edgetx_rc.py
+
 # Fine-tune YOLO (default: VisDrone, yolo26s, 1280 px, 100 epochs, ~5 h); installs ~/.cache/yolo/<name>.pt
 tools/train_detector.py                        # --resume after an interruption; --help for options
 ```

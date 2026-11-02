@@ -20,7 +20,7 @@ Two machines are involved:
 the IO coprocessor, which decodes PPM, SBUS and DSM only. CRSF (the ELRS protocol) needs PX4's
 `crsf_rc` driver on a UART, and that driver is `default n` and not enabled in
 `boards/px4/fmu-v6c/default.px4board`. So we build a variant with it switched on and plug the
-RP3 into TELEM2.
+RP3 into TELEM3.
 
 Fallback with stock firmware: ExpressLRS 3.3+ can set the receiver's serial protocol to **SBUS**,
 and the RP3 then goes into RC IN. That loses CRSF telemetry on the transmitter and the link
@@ -56,7 +56,7 @@ Same version as SITL, so parameters and behaviour match the sim.
 
 ```bash
 cd ~/PX4-Autopilot
-bash Tools/setup/ubuntu.sh --no-sim-tools      # installs the ARM toolchain (sudo); once
+bash Tools/setup/ubuntu.sh --no-sim-tools      # first time only: installs the ARM compiler; asks for your password
 echo 'CONFIG_DRIVERS_RC_CRSF_RC=y' > boards/px4/fmu-v6c/crsf.px4board
 make px4_fmu-v6c_crsf                           # → build/px4_fmu-v6c_crsf/px4_fmu-v6c_crsf.px4
 ```
@@ -66,7 +66,12 @@ A variant file holds only the lines that differ from `default.px4board` (compare
 Flash it either way:
 - **Laptop:** copy the `.px4` across. QGC → Vehicle Setup → Firmware, plug in USB, choose PX4 →
   **Advanced → Custom firmware file**.
-- **Desktop:** Pixhawk on USB, `make px4_fmu-v6c_crsf upload`.
+- **Desktop:** Pixhawk on USB, `make px4_fmu-v6c_crsf upload`. Needs serial-port access first:
+  ```bash
+  sudo usermod -aG dialout $USER   # then log out and in, or run the upload under: sg dialout -c "..."
+  sudo apt remove modemmanager     # it probes new serial devices and breaks uploads
+  ```
+  Without these the upload stops at `Permission denied` on `/dev/serial/by-id/usb-Auterion_PX4_FMU_v6C...`.
 
 ## 3. Wiring check
 
@@ -74,9 +79,17 @@ Flash it either way:
 |---|---|---|
 | GPS (compass, LED, safety switch) | GPS1 | Mast arrow forward |
 | SiK air radio | TELEM1 | MAVLink, `MAV_0_CONFIG` (default) |
-| ELRS RP3 | **TELEM2** | RP3 TX → pin 3 (FC RX), RP3 RX → pin 2 (FC TX), 5 V → pin 1, GND → pin 6 |
+| ELRS RP3 | **TELEM3** | RP3 TX → pin 3 (FC RX), RP3 RX → pin 2 (FC TX), 5 V → pin 1, GND → pin 6 |
+| *(later)* Jetson | TELEM2 | Kept free for the companion link: uXRCE-DDS at 921600 baud |
 | Power module (PM02) | POWER1 | |
 | ESC signal | FMU PWM OUT *or* I/O PWM OUT | Note which: it decides the protocol in step 8 |
+
+**Why the RP3 is on TELEM3:** TELEM1 and TELEM2 have hardware flow control (CTS/RTS); TELEM3
+does not. The Jetson's 921600-baud link needs flow control so neither side drops bytes when
+busy, and docs 01, 05 and 06 already plan it on TELEM2. CRSF is a small 420000-baud stream that
+never uses flow control and needs only pins 1, 2, 3 and 6. On 6C units whose serial number reads
+`XXXX 001 XXXXXX`, TELEM3 pins 4–5 are I2C: harmless here, but never plug a full 6-wire radio
+cable into it.
 
 Mount the RP3's two antennas apart and at ~90° to each other, clear of the carbon plates and the
 battery.
@@ -90,9 +103,10 @@ battery.
 4. Calibrate the **compass** outdoors or well away from metal, with everything in its final
    position. Redo it when the Jetson goes on (M3).
 5. **Parameters**, then reboot:
-   - `RC_CRSF_PRT_CFG` = TELEM 2
+   - `RC_CRSF_PRT_CFG` = TELEM 3
    - `RC_CRSF_TEL_EN` = 1
-   - `MAV_1_CONFIG` = Disabled (if it was TELEM 2)
+   - `MAV_1_CONFIG` = Disabled (if it was TELEM 2), keeping TELEM2 free for the Jetson
+   - Nothing else on TELEM 3: search the parameters for "TELEM 3"
    - `COM_RC_IN_MODE` = 0 (RC only)
 
 ## 5. RC link
@@ -193,9 +207,38 @@ Remote ID outside a FRIA. See [07](07-regulatory-and-safety.md) §1–2.
 
 ## Practising in SITL first
 
-EdgeTX can act as a USB joystick. Plug the transmitter into the desktop and fly the Gazebo SITL
-through QGC's joystick support, with the same sticks and switches you will use in the field.
-SITL needs `COM_RC_IN_MODE` set to allow a joystick; the real aircraft stays on 0.
+Fly the Gazebo SITL with the transmitter, using the same sticks, switches and channel map as
+the field. Do this before §5–§10 on the aircraft, or alongside them.
+
+`tools/edgetx_rc.py` reads the transmitter as a USB joystick and sends CH1–8 to PX4 at 50 Hz
+as MAVLink `RC_CHANNELS_OVERRIDE`. PX4 handles that as RC input (`input_rc`), exactly like
+the RP3's CRSF. So `RC_MAP_*`, the flight-mode slots, the arm, kill and Return switches, and
+the RC-loss failsafe all behave as on the aircraft. This doesn't use QGC's joystick support:
+that would turn the switches into QGC button actions, not PX4 RC switches.
+
+1. **Transmitter:** set up the model as in §5 (CH5 arm, CH6 mode, CH7 Return, CH8 kill). Plug
+   it into the desktop by USB and choose **USB Joystick (HID)**. The default classic joystick
+   mode sends CH1–8 as axes 0–7. Check: `/proc/bus/input/devices` lists "EdgeTX ... Joystick".
+2. **Sim:** `ros2 launch px4_bringup minimal.launch.py`, or headless `HEADLESS=1 make px4_sitl
+   gz_my_x500` (the launch file's `NAV_DLL_ACT` fix is then a manual `px4-param set`).
+3. **First time:** `tools/edgetx_rc.py --setup`. It sets the channel map, the mode slots (switch
+   low/centre/high = Position/Altitude/Stabilized), `RC_CHAN_CNT 8` (QGC's calibration sets
+   this on the aircraft; PX4 ignores RC while it is 0), `COM_RC_IN_MODE 0` (SITL's rcS defaults
+   it to 1, which ignores RC) and `MPC_VEL_MANUAL 4`. PX4 saves them. It leaves out the §9
+   geofence: 100 m would cut the longer sim missions short with an RTL.
+4. **Then:** `tools/edgetx_rc.py`. The status line shows CH1–8 in µs: check that each switch
+   moves its channel to ~1000/2000, and the arm switch is ~2000 when "on". PX4's arm state and
+   mode print on every change. PX4's own warnings ("Arming denied: ...") show in its console,
+   not here.
+
+Rehearse §10 and §11: arm on the switch with throttle low; switch modes; climb in Position mode;
+kill (motors stop; PX4 stays armed, then disarms once landed); Return. **RC loss:** unplug the
+USB cable or stop the script. PX4 holds for 5 s (`COM_FAIL_ACT_T`), then Returns and lands.
+The aircraft behaves the same way.
+
+The script sends ±100 % as 1000–2000 µs, the default calibration. CRSF sends 988–2012 µs, so
+on the aircraft QGC's radio calibration still matters. Unrelated to the transmitter, the SITL
+battery and sensors are ideal: the sim rehearses procedure, not handling.
 
 ---
 
@@ -216,4 +259,4 @@ SITL needs `COM_RC_IN_MODE` set to allow a joystick; the real aircraft stays on 
 | **RTL** | Return To Launch: automatic flight back to the takeoff point, then land. |
 | **SiK** | The open firmware on the 915 MHz telemetry radios that carry MAVLink to the laptop. |
 | **SITL** | Software In The Loop: the real PX4 firmware running as a simulation on the PC. |
-| **UART** | A simple two-wire serial connection; TELEM1/2 and GPS1 are UARTs. |
+| **UART** | A simple two-wire serial connection; TELEM1/2/3 and GPS1 are UARTs. |
