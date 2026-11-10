@@ -16,7 +16,7 @@ Start from a known-good, pre-tuned airframe and bolt the Jetson on.
 | Jetson Orin Nano Super Dev Kit | *owned* | 67 TOPS, 8 GB, already running from 128 GB NVMe. Measured 183 g |
 | RC TX + RX (RadioMaster TX16S + ExpressLRS RX) | ~$220 | Safety pilot control — **not optional** |
 | 4S 5000 mAh LiPo ×3 + charger | ~$220 | Three packs so you can actually iterate in one session |
-| DC-DC buck-boost, 19 V / 5 A | ~$25 | Carrier's jack takes 9–20 V. See [03](03-compute-and-power.md) — **not** a 5 V BEC, and not the FC's BEC |
+| DC-DC step-down, 12 V / 4.5 A (Pololu D42V55F12) + 100 µF/35 V input cap | ~$25 | Carrier's jack takes 9–20 V, 3.5 A. See [03](03-compute-and-power.md) — **not** a 5 V BEC, and not the FC's BEC |
 | Global-shutter USB3 camera (e.g. Arducam / Basler-class) | ~$180 | Start RGB-only |
 | Remote ID broadcast module | ~$100 | Required, see [07](07-regulatory-and-safety.md) |
 | Mounting: standoffs, vibration damping, 3D-printed trays, wiring | ~$80 | |

@@ -43,7 +43,7 @@ swappable. If you use a standard 260-pin SO-DIMM carrier, it should be a drop-in
 ## Power — the #1 integration mistake
 
 The dev kit ships with a 19 V wall supply, but the carrier's **DC barrel jack accepts 9–20 V**
-(datasheet: 3 A max; board markings say 5 A). A 4S LiPo runs **16.8 V charged down to ~13.2 V at
+(datasheet: 3.5 A max; board markings say 5 A). A 4S LiPo runs **16.8 V charged down to ~13.2 V at
 landing** — entirely inside that range. So the flight battery can power the Jetson directly
 through a regulator, with no special carrier hardware.
 
@@ -55,7 +55,7 @@ through a regulator, with no special carrier hardware.
 | Peripherals / margin | 5 W |
 | **Total** | **~40 W** |
 
-### Use a regulated DC-DC at ~19 V
+### Use a regulated DC-DC: Pololu D42V55F12, 12 V
 
 **Not** a 5 V BEC — that advice applies to a bare module on a third-party carrier. This carrier
 does its own regulation and wants 9–20 V at the input.
@@ -63,21 +63,38 @@ does its own regulation and wants 9–20 V at the input.
 **Not** direct from the battery either. Nominally it is in range, but ESC switching transients
 can spike past the 20 V ceiling and kill the board.
 
-**Why 19 V and not 12 V:** the jack's current rating binds. At 12 V, 40 W draws 3.3 A — at or
-over the 3 A datasheet limit. At 19 V it is **2.1 A**, comfortable.
+The part fitted is a **[Pololu D42V55F12](https://www.pololu.com/product/5577)** (#5577): a
+synchronous **step-down** regulator, 12 V ±3% out, 4.5 A typical continuous (3.5–6.5 A depending
+on input voltage; it is limited by heat), input up to 60 V, 85–95% efficient, 25 × 25 × 9 mm. It
+has reverse-voltage protection, soft start, over-current and over-temperature shutoff, an EN
+pin (pulled up; leave it open) and an open-drain power-good (PG) output. It is fed from the
+battery through the PDB — **not** off the flight controller's BEC, which is sized for servos and
+receivers (2–3 A). Browning out your flight controller mid-flight is the one failure you cannot
+recover from.
 
-Specify a **buck-boost DC-DC module, output ~18–19 V, rated 5 A**, fed from the battery through
-the PDB — **not** off the flight controller's BEC, which is sized for servos and receivers
-(2–3 A). Browning out your flight controller mid-flight is the one failure you cannot recover
-from.
+**Why 12 V and not 19 V:** the original plan was a 19 V / 5 A buck-boost, to keep the jack
+current low. In practice no suitable buck-boost module turned up, and 12 V fits within the jack's
+rating: at 12 V, 40 W draws **3.3 A** against the datasheet's **3.5 A** limit. That leaves only
+~6% headroom (42 W). The Orin Nano rarely sustains its full 25 W, and the budget already carries
+5 W of margin, so this is acceptable. But it is the number to recheck before adding more USB
+loads, and the barrel plug should be checked for heat after a long bench run at full load.
 
-Add a bulk capacitor (470 µF+ low-ESR) at the converter input to absorb throttle transients.
+**Input capacitor:** solder a **low-ESR aluminium electrolytic, 100 µF, 35 V** (50 V if 6S is
+ever likely) across VIN–GND, right at the regulator's pins with the leads as short as possible.
+It is there to damp the LC spike when a battery is hot-plugged: the battery leads' inductance
+rings with the regulator's onboard ceramic capacitors, and the overshoot can reach about twice
+the pack voltage (~34 V on a full 4S). Pololu's general guidance for its regulators is ≥33 µF
+electrolytic. It must be an electrolytic, because its ESR is what damps the ringing; a ceramic
+or solid-polymer capacitor in its place makes the ringing worse. Pick one rated for ~1 A or more
+of ripple current (e.g. Panasonic FR/FM, Nichicon PW/HE, Rubycon ZLH): the input ripple is
+~1.8 A RMS at 4.5 A out. The onboard ceramics carry most of it, but a general-purpose part would
+run warm.
 
 ### What happens as the battery drains
 
-The output does **not** change. A regulated converter holds 19 V regardless of input voltage —
-the Jetson never sees the pack sag. What changes is the *input current*, because the Jetson is a
-roughly constant-power load:
+The output does **not** change while the input stays above 12 V plus the dropout (~0.5 V at
+this load, so ~12.5 V). The Jetson never sees the pack sag. What changes is the *input current*,
+because the Jetson is a roughly constant-power load:
 
 | Battery state | Pack voltage | Input current (40 W load, ~90% eff.) |
 |---|---|---|
@@ -87,22 +104,22 @@ roughly constant-power load:
 | Critical / landing | 13.2 V | 3.3 A |
 | Momentary sag under a hard punch | ~12.0 V | 3.7 A |
 
-Output stays pinned at **19 V / 2.1 A** throughout — under the jack's 3 A rating at every point.
+Output stays at **12 V / 3.3 A** down to the critical level, under the jack's 3.5 A rating at
+every point. A momentary sag below ~12.5 V is passed through minus the dropout (12.0 V in →
+~11.5 V out). That is harmless: the jack accepts down to 9 V, and the carrier regulates from
+there. The same goes for the 4S3P Li-ion option below, whose empty end (12.0 V) gives ~11.5 V.
 
-⭐ **Size the converter for the empty end, not the full end.** Worst case is ~3.7–4 A input,
-which is why the spec is a 5 A part. Size wire gauge and connectors for that number too.
+⭐ **Size the wiring for the empty end, not the full end.** Worst case is ~3.7–4 A input. Size
+wire gauge and connectors for that number. The regulator handles it; its 4.5 A typical rating
+is at 42 V input, and it delivers more at the lower 4S voltages.
 
-**With 4S it is always boosting** — 16.8 V charged is below 19 V, so a pure boost module would
-do. Buck-boost is recommended anyway to future-proof: on 6S, 25.2 V charged exceeds the jack's
-20 V ceiling and you would need to buck instead.
-
-**Boost topologies pass input through when disabled** (inductor + diode path), so at power-on
-the Jetson may briefly see raw pack voltage. At 4S that is 16.8 V — inside range, harmless. On
-6S it would be 25.2 V and would damage the board.
+**A buck needs no 6S rework.** The regulator takes up to 60 V, so a 6S pack (25.2 V charged)
+would still give 12 V. Unlike a boost converter, a disabled buck does not pass the raw pack
+voltage through to the output.
 
 The battery failsafe protects this end anyway: PX4 triggers RTL near 3.5 V/cell (14 V) and
-critical at ~3.3 V/cell (13.2 V), so you land long before the converter's input range (typically
-down to 8–9 V) is stressed.
+critical at ~3.3 V/cell (13.2 V), so you land before the input falls into the dropout region
+for more than a moment.
 
 **The converter earns its place on transients, not on discharge.** Steady 13.2 V is fine for the
 jack directly; it is throttle-punch sag and ESC switching spikes that kill boards. The converter
@@ -413,7 +430,7 @@ Confidence matters as much as the numbers: only two entries here are solid.
 | 4S 5000 mAh LiPo | ~500 g | estimate — ±50 g by brand |
 | **Subtotal — stock aircraft** | **~1,550 g** | *reconciles with Holybro's ~1.6 kg quoted AUW* |
 | **Jetson Orin Nano + NVIDIA carrier + heatsink/fan + 128 GB NVMe** | **183 g** | **measured** |
-| DC-DC converter (19 V) + wiring + bulk capacitor | ~50 g | estimate — part not chosen |
+| DC-DC converter (D42V55F12, 12 V) + wiring + input capacitor | ~50 g | estimate — part chosen, not yet weighed |
 | Camera + mount | ~80 g | estimate — part not chosen |
 | Remote ID broadcast module | ~30 g | estimate — part not chosen |
 | Mounting trays, standoffs, damping | ~40 g | estimate |
