@@ -1,0 +1,22 @@
+57 views, board 9x6 inner corners, square 55.0 mm, image 1920x1080
+
+rational_polynomial
+  training RMS      0.231 px
+  held-out RMS      0.254 px   (5-fold; compare models on this)
+  views used        51  (dropped: view_048.png, view_049.png, view_050.png, view_053.png, view_054.png, view_055.png)
+  fx fy             1052.28 1053.04 px   (focal 3.157 mm at 3.0 um pixels)
+  cx cy             940.87 535.90 px   (centre 959.5 539.5)
+  D                 [0.231616, -0.251208, -6.29277e-05, -6.18418e-05, -0.0189852, 0.608209, -0.262061, -0.0868159]
+  lens FOV          INVALID: the model curve turns back at 56.5 deg off-axis, before the image edge or corner; it cannot undistort those pixels. Use another model.
+  rectified (P) FOV 90.9 x 59.5 deg, f 945.6 px
+
+equidistant
+  training RMS      0.231 px
+  held-out RMS      0.233 px   (5-fold; compare models on this)
+  views used        51  (dropped: view_048.png, view_049.png, view_050.png, view_053.png, view_054.png, view_055.png)
+  fx fy             1052.08 1052.87 px   (focal 3.156 mm at 3.0 um pixels)
+  cx cy             940.18 535.48 px   (centre 959.5 539.5)
+  D                 [-0.043353, -0.000916693, -0.0056979, 0.00371299]
+  lens FOV          109.1 H x 59.4 V, corner 64.8 deg off-axis
+  from full frame   fx fy 1038.87 1039.81, cx cy 945.30 538.98   (measured - predicted: +13.22 +13.06 -5.11 -3.50 px; assumes a centred crop)
+  rectified (P) FOV 90.9 x 59.5 deg, f 945.4 px

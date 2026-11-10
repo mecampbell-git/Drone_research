@@ -1,0 +1,22 @@
+164 views, board 9x6 inner corners, square 55.0 mm, image 1280x720
+
+rational_polynomial
+  training RMS      0.210 px
+  held-out RMS      0.210 px   (5-fold; compare models on this)
+  views used        164
+  fx fy             694.86 695.51 px   (focal 3.127 mm at 4.5 um pixels)
+  cx cy             630.91 356.33 px   (centre 639.5 359.5)
+  D                 [14.0321, 12.8243, -3.53191e-05, -0.000539528, 1.1053, 14.3847, 18.0083, 4.41509]
+  lens FOV          109.5 H x 59.9 V, corner 64.0 deg off-axis
+  rectified (P) FOV 91.4 x 59.9 deg, f 624.5 px
+
+equidistant
+  training RMS      0.224 px
+  held-out RMS      0.224 px   (5-fold; compare models on this)
+  views used        164
+  fx fy             693.88 694.48 px   (focal 3.122 mm at 4.5 um pixels)
+  cx cy             626.93 356.83 px   (centre 639.5 359.5)
+  D                 [-0.0363926, -0.00884165, 0.00838165, -0.00465372]
+  lens FOV          109.8 H x 59.9 V, corner 65.3 deg off-axis (curve turns back at 87.6 deg)
+  from full frame   fx fy 692.58 693.20, cx cy 630.03 359.15   (measured - predicted: +1.30 +1.28 -3.10 -2.33 px; assumes a centred crop)
+  rectified (P) FOV 91.5 x 60.0 deg, f 623.3 px

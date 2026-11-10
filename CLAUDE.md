@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 One repo for the whole project: design notes, ROS 2 code and simulation assets.
 
 - `docs/`: research and design notes. `06-autonomy-roadmap.md` defines the milestones (M0 = SITL square). `05-software-stack.md` pins versions.
-- `camera/`: vendor PDFs for the e-con See3CAM_24CUG (the camera bought) and e-CAM25_CUONX (rejected: no JetPack 7.2 driver).
+- `camera/`: `calibration/`: the lens calibration (`tools/calibrate_camera.py`, 2026-11-10) for 1920×1200, 1920×1080 and 1280×720, one `*_equidistant.yaml` (OpenCV fisheye model, ROS `camera_info` format) per mode; the rational model fails in the image corners for this lens. 1920×1080 is 1920×1200 minus 60 rows top and bottom, 1280×720 is 1920×1080 scaled by 2/3 (measured). Valid only at the current focus. `pixel_distance.py` still assumes a pinhole (TODO at its top). Also vendor PDFs for the e-con See3CAM_24CUG (the camera bought) and e-CAM25_CUONX (rejected: no JetPack 7.2 driver).
 - `ws/`: the colcon workspace root. `build/`, `install/` and `log/` are gitignored.
   - `ws/src/px4_offboard`, `ws/src/px4_bringup`: two `ament_python` packages, originally from [MechaMind-Labs/ROS2-PX4_Drone_Teleoperation_Using_Joystick](https://github.com/MechaMind-Labs/ROS2-PX4_Drone_Teleoperation_Using_Joystick) (upstream README kept as `ws/src/UPSTREAM_README.md`), now modified and owned here.
   - `ws/src/px4_msgs`: git submodule of `PX4/px4_msgs`, branch `release/1.17`. Clone with `--recursive` or run `git submodule update --init`.
@@ -66,6 +66,9 @@ tools/plot_flight.py                           # --mission mission1.csv, --save 
 # Fly SITL with the EdgeTX transmitter (USB joystick) as real RC input; see docs/10 "Practising in SITL first"
 tools/edgetx_rc.py --setup                     # once per SITL param set: channel map, RC_CHAN_CNT, COM_RC_IN_MODE 0
 tools/edgetx_rc.py
+
+# Calibrate the See3CAM_24CUG with the A2 chessboard (9x6 inner corners, 55 mm); live preview auto-captures views
+tools/calibrate_camera.py                      # writes camera/calibration/*.yaml (ROS camera_info); --images DIR reruns a session; --width/--height for other modes
 
 # Fine-tune YOLO (default: VisDrone, yolo26s, 1280 px, 100 epochs, ~5 h); installs ~/.cache/yolo/<name>.pt
 tools/train_detector.py                        # --resume after an interruption; --help for options

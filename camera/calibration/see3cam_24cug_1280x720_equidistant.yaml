@@ -1,0 +1,20 @@
+image_width: 1280
+image_height: 720
+camera_name: see3cam_24cug
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [693.8787172, 0, 626.9322802, 0, 694.4828465, 356.8250405, 0, 0, 1]
+distortion_model: equidistant
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [-0.03639257149, -0.008841645415, 0.008381653202, -0.004653721349]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [623.3287938, 0, 600.6263473, 0, 0, 623.3287938, 356.1939606, 0, 0, 0, 1, 0]
