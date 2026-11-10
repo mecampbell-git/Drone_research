@@ -8,3 +8,5 @@
 PX4_SIM_MODEL=${PX4_SIM_MODEL:=my_x500_see3cam_down}
 
 . ${R}etc/init.d-posix/airframes/22001_gz_my_x500
+
+param set-default MPC_XY_CRUISE 10
