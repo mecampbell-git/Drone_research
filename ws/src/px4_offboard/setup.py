@@ -18,9 +18,9 @@ setup(
         # Include config files
         (os.path.join('share', package_name, 'config'), 
             glob('config/*.yaml')),
-        # Include mission files (rows of north,east,down,delay_s)
+        # Include mission files (CSV: rows of north,east,down,delay_s; JSON: mission_control.py)
         (os.path.join('share', package_name, 'missions'),
-            glob('missions/*.csv')),
+            glob('missions/*.csv') + glob('missions/*.json')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -39,6 +39,7 @@ setup(
             'camera_monitor.py = px4_offboard.camera_monitor:main',
             'waypoint_mission.py = px4_offboard.waypoint_mission:main',
             'object_detector.py = px4_offboard.object_detector:main',
+            'mission_control.py = px4_offboard.mission_control:main',
         ],
     },
 )

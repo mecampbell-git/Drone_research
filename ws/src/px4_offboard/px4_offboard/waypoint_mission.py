@@ -23,11 +23,15 @@ Parameters (--ros-args -p name:=value):
                      5.3-6.5 m (default 6.0)
   autostart          true: start the flight as soon as PX4 accepts the mode (default).
                      false: wait until the mode is selected (QGC, RC, or a vehicle command).
+
+Subscribes to /detections (vision_msgs/Detection2DArray from object_detector.py); the mode
+logs the tracked objects about once a second while it flies.
 """
 
 import csv
 import math
 import os
+import threading
 import time
 
 from ament_index_python.packages import get_package_share_directory
@@ -35,15 +39,23 @@ import numpy as np
 import px4_ros2
 from px4_msgs.msg import VehicleCommand
 import rclpy
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
+from vision_msgs.msg import Detection2DArray
+
+from px4_offboard.pixel_distance import pixel_to_ground_ned, target_waypoint
+
 
 Result = px4_ros2.components.Result
 
 # PX4's Goto smoother approaches its target at about this many m/s per metre of distance
 # left (PX4's MPC_XY_TRAJ_P default; measured 0.5-0.6 in SITL) [1/s]
 APPROACH_GAIN = 0.5
+
+# Detections older than this are ignored, e.g. if the detector has stopped [s, wall clock]
+DETECTIONS_MAX_AGE = 1.0
 
 
 def load_mission(path):
@@ -79,16 +91,106 @@ class WaypointMode(px4_ros2.components.ModeBase):
     def __init__(self, px4_node, logger, mission, max_speed, acceptance_radius, lookahead):
         super().__init__(node=px4_node, mode_name='Waypoints')
         self.goto = px4_ros2.control.MulticopterGotoSetpointType(self)
+        self.traj = px4_ros2.control.TrajectorySetpointType(self)
+
+        self.vehicle_attitude = px4_ros2.odometry.Attitude(self)
         self.local_position = px4_ros2.odometry.LocalPosition(self)
+
         self.logger = logger
         self.points = [p for p, _ in mission]
         self.delays = [d for _, d in mission]
         self.max_speed = max_speed
+        self.cruise_speed = 6
         self.acceptance_radius = acceptance_radius
         self.lookahead = lookahead
+        # Latest /detections message and when it arrived (time.monotonic()). Set from the
+        # rclpy executor thread by on_detections(); read here in update_setpoint().
+        self.detections = None
+        self.detections_time = 0.0
+
+        self.mount_rpy_frd = np.array([0.0, -1.05, 0.0])
+        self.fov_rad = np.radians((85.3, 59.9))  # sim camera; see pixel_distance.py
+        self.img_size = (1920, 1200)
+        self.rpy = np.array([0.0, 0.0, 0.0])
+
+    def on_detections(self, msg):
+        """Store the latest Detection2DArray (called from the rclpy thread)."""
+        self.detections = msg
+        self.detections_time = time.monotonic()
+
+    def current_detections(self):
+        """Return the latest detections, or [] if none have arrived recently."""
+        msg = self.detections
+        if msg is None or time.monotonic() - self.detections_time > DETECTIONS_MAX_AGE:
+            return []
+        return msg.detections
+
+    def get_detection(self, position):
+        self.rpy = self.get_attitude()
+        det = False
+        for d in self.current_detections():
+
+            u = d.bbox.center.position.x
+            v = d.bbox.center.position.y + d.bbox.size_y / 2.0  # bottom of the box
+            p1_ned = pixel_to_ground_ned(u, v, position, self.rpy, self.mount_rpy_frd, self.fov_rad, self.img_size)
+
+            d_to_target = np.linalg.norm(p1_ned - self.target_pos)
+
+            if not self.targeting and self.target_id != d.id and d_to_target > 5.0:
+                self.targeting = True
+                self.target_wp = target_waypoint(position, p1_ned, 5.0, -self.mount_rpy_frd[1])
+                self.target_id = d.id
+                self.target_start = position
+                self.target_delay = 10.0
+                self.target_pos = p1_ned
+                det = True
+
+                self.logger.info(
+                    f'Current: ({position[0]:.1f}, {position[1]:.1f}, {position[2]:.1f}) Target: ({self.target_wp[0]:.1f}, {self.target_wp[1]:.1f}, {self.target_wp[2]:.1f}) '
+                    f'Tpos ({p1_ned[0]:.2f}, {p1_ned[1]:.2f}, {p1_ned[2]:.2f})' )
+        return det
+
+
+    def log_detections(self, position):
+        objects = []
+        self.rpy = self.get_attitude()
+        for d in self.current_detections():
+            hypothesis = d.results[0].hypothesis if d.results else None
+            label = hypothesis.class_id if hypothesis else '?'
+            score = hypothesis.score if hypothesis else 0.0
+            u = d.bbox.center.position.x
+            v = d.bbox.center.position.y
+            p1_ned = pixel_to_ground_ned(u, v, position, self.rpy, self.mount_rpy_frd, self.fov_rad, self.img_size)
+
+            objects.append(f'{label} #{d.id} at ({u:.0f}, '
+                        #    f'{v:.0f}) px {score:.2f}')
+                           f'{v:.0f}) pos ({p1_ned[0]:.2f}, {p1_ned[1]:.2f}, {p1_ned[2]:.2f})')
+        self.logger.info(
+            f'At ({position[0]:.1f}, {position[1]:.1f}, {position[2]:.1f}): '
+            f'{len(objects)} object(s)' + (': ' + ', '.join(objects) if objects else ''),
+            throttle_duration_sec=1.0)
+        return len(objects)
+    
+    def get_attitude(self):
+        r = self.vehicle_attitude.roll()
+        p = self.vehicle_attitude.pitch()
+        y = self.vehicle_attitude.yaw()
+        return np.array([r, p, y])
+
+    def log_attitude(self):
+        r = self.vehicle_attitude.roll()
+        p = self.vehicle_attitude.pitch()
+        y = self.vehicle_attitude.yaw()
+        self.rpy = np.array([r, p, y])
+        self.logger.info(f'roll: {r:.2f}, pitch: {p:.2f}, yaw: {y:.2f}', throttle_duration_sec=1.0)
 
     def is_stop(self, i):
-        return self.delays[i] > 0 or i == len(self.points) - 1
+        if self.targeting or self.delays[i] > 0 or i == len(self.points) - 1:
+            ret = True
+        else :
+            ret = False
+        return ret
+        # return self.delays[i] > 0 or i == len(self.points) - 1
 
     def segment_start(self, i):
         return self.start if i == 0 else self.points[i - 1]
@@ -100,7 +202,10 @@ class WaypointMode(px4_ros2.components.ModeBase):
         """
         remaining = along + distance
         while True:
-            a, b = self.segment_start(i), self.points[i]
+            if not self.targeting:
+                a, b = self.segment_start(i), self.points[i]
+            else:
+                a, b = self.target_start, self.target_wp
             length = np.linalg.norm(b - a)
             # print(i, remaining, length)
             if remaining <= length:
@@ -116,6 +221,9 @@ class WaypointMode(px4_ros2.components.ModeBase):
         self.waiting = False
         self.elapsed = 0.0          # time on the current leg or hold [s]
         self.heading = self.local_position.heading()
+        self.targeting = False
+        self.target_id = 0
+        self.target_pos = np.array([0.0, 10000.0, 1000.0])
 
     def on_deactivate(self):
         pass
@@ -128,7 +236,14 @@ class WaypointMode(px4_ros2.components.ModeBase):
 
         i = self.index
         position = self.local_position.position_ned()
-        a, b = self.segment_start(i), self.points[i]
+        # self.get_detection(position)
+        self.log_detections(position)
+
+        if not self.targeting:
+            a, b = self.segment_start(i), self.points[i]
+        else:
+            a, b = self.target_start, self.target_wp
+
         length = np.linalg.norm(b - a)
         # Progress along the current segment: the drone's position projected onto it
         along = 0.0
@@ -140,14 +255,15 @@ class WaypointMode(px4_ros2.components.ModeBase):
         speed_xy = math.hypot(velocity[0], velocity[1])
         distance = self.lookahead + speed_xy / APPROACH_GAIN
         target = self.carrot(i, along, distance)
-        # print(target)
+
+        # self.log_attitude()
 
         # Face the direction of travel; hold the last heading close to the target, where the
         # direction to it becomes noisy.
         to_target = target - position
         if math.hypot(to_target[0], to_target[1]) > 1.0:
             self.heading = math.atan2(to_target[1], to_target[0])
-        self.goto.update(target, heading=self.heading, max_horizontal_speed=self.max_speed)
+        self.goto.update(target, heading=self.heading, max_horizontal_speed=self.cruise_speed)
         self.elapsed += dt_s
 
         if not self.is_stop(i):
@@ -183,15 +299,28 @@ class WaypointMode(px4_ros2.components.ModeBase):
             self.waiting = True
             self.elapsed = 0.0
 
-        if self.elapsed < self.delays[i]:
+        if self.targeting:
+            delay = self.target_delay
+            self.yaw_rate = 0.0
+        else:
+            delay = self.delays[i]
+            self.yaw_rate = 2*np.pi / self.delays[i] if self.delays[i] > 0 else 0.0
+
+        # if self.elapsed < self.delays[i]:
+        if self.elapsed < delay:
+            self.heading += self.yaw_rate * dt_s
+            if self.heading > math.pi:
+                self.heading -= 2*math.pi
             return
 
         self.waiting = False
         self.elapsed = 0.0
-        self.index += 1
+        if not self.targeting:
+            self.index += 1
         if self.index == len(self.points):
             self.completed(Result.success)
 
+        self.targeting = False
 
 class MissionExecutor(px4_ros2.components.ModeExecutorBase):
     """Arm, take off, fly the Waypoints mode, land, then shut down once disarmed."""
@@ -274,14 +403,14 @@ def command_return(node, logger):
 
 
 def main(args=None):
-    # rclpy handles parameters and logging (and later, perception topics); the px4_ros2 node
-    # is a separate rclcpp node that talks to PX4. Ctrl-C shuts the px4_ros2 node down, so
-    # rclpy must not shut down too: it sends the Return command on the way out.
+    # rclpy handles parameters, logging and perception topics; the px4_ros2 node is a
+    # separate rclcpp node that talks to PX4. Ctrl-C shuts the px4_ros2 node down, so rclpy
+    # must not shut down too: it sends the Return command on the way out.
     rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
     node = Node('waypoint_mission')
     logger = node.get_logger()
     mission_file = node.declare_parameter('mission_file', 'mission_box.csv').value
-    max_speed = node.declare_parameter('max_speed', 5.0).value
+    max_speed = node.declare_parameter('max_speed', 10.0).value
     acceptance_radius = node.declare_parameter('acceptance_radius', 0.5).value
     lookahead = node.declare_parameter('lookahead', 6.0).value
     autostart = node.declare_parameter('autostart', True).value
@@ -299,6 +428,14 @@ def main(args=None):
         logger.error('PX4 did not accept the mode registration')
         return
 
+    # px4_node.spin() only drives the px4_ros2 node, so the rclpy node (subscriptions) spins
+    # in its own thread. spin() releases the GIL, so the two run side by side.
+    node.create_subscription(Detection2DArray, '/detections', mode.on_detections, 10)
+    ros_executor = SingleThreadedExecutor()
+    ros_executor.add_node(node)
+    ros_thread = threading.Thread(target=ros_executor.spin, daemon=True)
+    ros_thread.start()
+
     try:
         px4_node.spin()     # returns after finish() or Ctrl-C
     except KeyboardInterrupt:
@@ -313,6 +450,8 @@ def main(args=None):
         # Python may free the node first and the process crashes on exit.
         del executor, mode
         del px4_node
+        ros_executor.shutdown()
+        ros_thread.join(timeout=1.0)
         node.destroy_node()
         rclpy.try_shutdown()
 

@@ -63,8 +63,11 @@
         <gz_frame_id>camera_link</gz_frame_id>
         <pose>0.028 0 0 0 0 0</pose>
         <camera>
-          <!-- 87.7 deg: 2 atan(2.88 mm / 3.0 mm) -->
-          <horizontal_fov>1.531</horizontal_fov>
+          <!-- 85.30 deg = 2 atan(960 / 1042.2): the calibrated focal length (fx, fy 1041.6,
+               1042.7 px at 1920x1200, camera/calibration/), so the image centre has the real
+               camera's scale. A pinhole can't reproduce the fisheye lens (109.7 x 66.8 deg),
+               so the outer edges of the real frame are missing here. -->
+          <horizontal_fov>1.4888</horizontal_fov>
           <image>
             <width>1920</width>
             <height>1200</height>

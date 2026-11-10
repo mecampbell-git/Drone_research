@@ -1,0 +1,79 @@
+{
+    "camera": {
+        "mount_rpy_frd": [
+            0.0,
+            -1.05,
+            0.0
+        ],
+        "fov": [
+            85.3,
+            59.9
+        ],
+        "img_size": [
+            1920,
+            1200
+        ],
+        "frame_rate": 30
+    },
+    "params": {
+        "wp_format": "LLA",
+        "max_speed": 10.0,
+        "acceptance_radius": 0.5,
+        "lookahead": 6.0,
+        "autostart": true
+    },
+    "items": [
+        {
+            "command": 1,
+            "params": [
+                37.87145913,
+                -122.32004523,
+                10,
+                5
+            ],
+            "flythrough": false
+        },
+        {
+            "command": 3,
+            "params": 30
+        },
+        {
+            "command": 4,
+            "params": 5
+        },
+        {
+            "command": 1,
+            "params": [
+                37.87140113,
+                -122.31924254,
+                10,
+                5
+            ],
+            "flythrough": true
+        },
+        {
+            "command": 1,
+            "params": [
+                37.87196616,
+                -122.31897867,
+                15,
+                8
+            ],
+            "flythrough": false
+        },
+        {
+            "command": 4,
+            "params": 5
+        },
+        {
+            "command": 1,
+            "params": [
+                37.87188384,
+                -122.3198651,
+                20,
+                5
+            ],
+            "flythrough": false
+        }
+    ]
+}
